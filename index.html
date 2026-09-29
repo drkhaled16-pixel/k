@@ -17,6 +17,7 @@
         .card { border-radius: 12px; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
         .header-bg { background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white; padding: 30px 0; margin-bottom: 30px; }
         .school-title { font-size: 1.1rem; opacity: 0.9; margin-bottom: 5px; }
+        .edition-badge { background-color: #f39c12; color: #fff; padding: 3px 10px; border-radius: 15px; font-size: 0.85rem; }
         .nav-pills .nav-link.active { background-color: #2a5298; }
         .btn-custom { background-color: #2a5298; color: white; }
         .btn-custom:hover { background-color: #1e3c72; color: white; }
@@ -32,12 +33,13 @@
 </head>
 <body>
 
-    <!-- الترويسة -->
+    <!-- الترويسة الهيدر -->
     <div class="header-bg text-center">
         <div class="container">
             <div class="school-title">ثانوية الأمير عبدالمجيد</div>
             <h1 class="fw-bold">مادة القرآن الكريم وتفسيره</h1>
-            <p class="mb-0">منهج الصف الأول الثانوي - نظام إدارة المقرر والطلاب والدرجات</p>
+            <p class="mb-1">منهج الصف الأول الثانوي - نظام إدارة المقرر والطلاب والدرجات</p>
+            <span class="edition-badge">الطبعة الحديثة 1448هـ - 2026م</span>
         </div>
     </div>
 
@@ -58,24 +60,24 @@
         <!-- تبويب مقرر المادة -->
         <div id="curriculumTab" class="tab-content">
             <div class="card p-4">
-                <h4 class="mb-3 text-primary">الوحدات والدروس المسجلة</h4>
+                <h4 class="mb-3 text-primary">الوحدات والدروس المسجلة (طبعة 1448هـ)</h4>
                 <div id="curriculumAccordion" class="accordion mb-4">
                     <!-- الوحدة الأولى -->
                     <div class="accordion-item">
                         <h2 class="accordion-header">
                             <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#unit1">
-                                الوحدة الأولى: مدخل إلى التفسير وأصوله
+                                الوحدة الأولى: مقدمة في التفسير وأصوله
                             </button>
                         </h2>
                         <div id="unit1" class="accordion-collapse collapse show">
                             <div class="accordion-body p-0">
                                 <ul class="list-group list-group-flush">
                                     <li class="list-group-item d-flex justify-content-between align-items-center">
-                                        <div><strong>الدرس الأول: تعريف التفسير ونشأته</strong></div>
-                                        <div><span class="badge bg-info text-dark">اختبار تقويمي (10 درجات)</span></div>
+                                        <div><strong>الدرس الأول: مفهوم التفسير ونشأته</strong></div>
+                                        <div><span class="badge bg-info text-dark">اختبار قصير (10 درجات)</span></div>
                                     </li>
                                     <li class="list-group-item d-flex justify-content-between align-items-center">
-                                        <div><strong>الدرس الثاني: أقسام التفسير ومناهجه</strong></div>
+                                        <div><strong>الدرس الثاني: ضوابط التفسير ومناهجه</strong></div>
                                         <div><span class="text-muted small">لا يوجد اختبار</span></div>
                                     </li>
                                 </ul>
@@ -86,15 +88,15 @@
                     <div class="accordion-item">
                         <h2 class="accordion-header">
                             <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#unit2">
-                                الوحدة الثانية: علوم القرآن الكريم
+                                الوحدة الثانية: تفسير السور المقررة
                             </button>
                         </h2>
                         <div id="unit2" class="accordion-collapse collapse">
                             <div class="accordion-body p-0">
                                 <ul class="list-group list-group-flush">
                                     <li class="list-group-item d-flex justify-content-between align-items-center">
-                                        <div><strong>الدرس الثالث: الوحي ونزول القرآن الكريم</strong></div>
-                                        <div><span class="badge bg-info text-dark">اختبار قصير (10 درجات)</span></div>
+                                        <div><strong>الدرس الثالث: تفسير سورة الفاتحة</strong></div>
+                                        <div><span class="badge bg-info text-dark">اختبار تقويمي (10 درجات)</span></div>
                                     </li>
                                 </ul>
                             </div>
@@ -104,12 +106,12 @@
 
                 <hr>
                 <h5 class="mt-3">إضافة درس جديد</h5>
-                <form id="addLessonForm" class="row g-3 mt-1" onsubmit="event.preventDefault(); alert('تم إضافة الدرس وتخزينه في سحابة Firebase بنجاح!');">
+                <form id="addLessonForm" class="row g-3 mt-1" onsubmit="event.preventDefault(); alert('تم حفظ الدرس في سحابة Firebase!');">
                     <div class="col-md-5">
                         <select class="form-select" required>
                             <option value="">اختر الوحدة...</option>
-                            <option value="1">الوحدة الأولى: مدخل إلى التفسير وأصوله</option>
-                            <option value="2">الوحدة الثانية: علوم القرآن الكريم</option>
+                            <option value="1">الوحدة الأولى: مقدمة في التفسير وأصوله</option>
+                            <option value="2">الوحدة الثانية: تفسير السور المقررة</option>
                         </select>
                     </div>
                     <div class="col-md-5">
@@ -126,7 +128,7 @@
         <div id="studentsTab" class="tab-content" style="display:none;">
             <div class="card p-4">
                 <h4 class="mb-3 text-primary">إضافة طالب جديد</h4>
-                <form id="addStudentForm" class="row g-3 mb-4" onsubmit="event.preventDefault(); alert('تم حفظ الطالب في قواعد البيانات السحابية!');">
+                <form id="addStudentForm" class="row g-3 mb-4" onsubmit="event.preventDefault(); alert('تم إضافة الطالب إلى قاعدة البيانات السحابية!');">
                     <div class="col-md-5">
                         <input type="text" class="form-control" placeholder="اسم الطالب الثلاثي" required>
                     </div>
@@ -153,37 +155,38 @@
                             <td>1</td>
                             <td>عبدالله أحمد السالم</td>
                             <td>104001</td>
-                            <td><button class="btn btn-sm btn-outline-primary" onclick="alert('تلاوة وحفظ: 10\nاختبارات: 10\nالمشاركة: 10\nالمجموع: 30/30')">عرض كشف الدرجات</button></td>
+                            <td><button class="btn btn-sm btn-outline-primary" onclick="alert('التلاوة والحفظ: 10\nالاختبارات: 10\nالمشاركة: 10\nالمجموع: 30/30')">عرض كشف الدرجات</button></td>
                         </tr>
                         <tr>
                             <td>2</td>
                             <td>محمد عمر الشمري</td>
                             <td>104002</td>
-                            <td><button class="btn btn-sm btn-outline-primary" onclick="alert('تلاوة وحفظ: 9\nاختبارات: 8.5\nالمشاركة: 10\nالمجموع: 27.5/30')">عرض كشف الدرجات</button></td>
+                            <td><button class="btn btn-sm btn-outline-primary" onclick="alert('التلاوة والحفظ: 9\nالاختبارات: 8.5\nالمشاركة: 10\nالمجموع: 27.5/30')">عرض كشف الدرجات</button></td>
                         </tr>
                     </tbody>
                 </table>
             </div>
         </div>
 
-        <!-- تبويب الدرجات -->
+        <!-- تبويب الدرجات والاختبارات -->
         <div id="gradesTab" class="tab-content" style="display:none;">
             <div class="row">
                 <div class="col-md-6">
                     <div class="card p-4">
                         <h4 class="mb-3 text-primary">إنشاء اختبار لدرس</h4>
-                        <form onsubmit="event.preventDefault(); alert('تم إنشاء الاختبار وحفظه سحابياً!');">
+                        <form onsubmit="event.preventDefault(); alert('تم حفظ الاختبار سحابياً!');">
                             <div class="mb-3">
                                 <label class="form-label">الدرس الخاص بالاختبار</label>
                                 <select class="form-select" required>
                                     <option value="">اختر الدرس...</option>
-                                    <option>الدرس الأول: تعريف التفسير ونشأته</option>
-                                    <option>الدرس الثاني: أقسام التفسير ومناهجه</option>
+                                    <option>الدرس الأول: مفهوم التفسير ونشأته</option>
+                                    <option>الدرس الثاني: ضوابط التفسير ومناهجه</option>
+                                    <option>الدرس الثالث: تفسير سورة الفاتحة</option>
                                 </select>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">عنوان الاختبار</label>
-                                <input type="text" class="form-control" placeholder="مثال: اختبار قصير - أصول التفسير" required>
+                                <input type="text" class="form-control" placeholder="مثال: اختبار تقويمي - تفسير سورة الفاتحة" required>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">الدرجة العظمى</label>
@@ -197,7 +200,7 @@
                 <div class="col-md-6">
                     <div class="card p-4">
                         <h4 class="mb-3 text-primary">رصد درجات طالب</h4>
-                        <form onsubmit="event.preventDefault(); alert('تم رصد وتأكيد الدرجات بنجاح!');">
+                        <form onsubmit="event.preventDefault(); alert('تم رصد وحفظ الدرجات بنجاح!');">
                             <div class="mb-3">
                                 <label class="form-label">الطالب</label>
                                 <select class="form-select" required>
@@ -226,7 +229,7 @@
         </div>
     </div>
 
-    <!-- الفوتر - الحقوق -->
+    <!-- الفوتر مع الحقوق -->
     <footer>
         <div class="container">
             جميع الحقوق محفوظة © 2026 | <strong>أ. خالد الشثري</strong> - ثانوية الأمير عبدالمجيد
@@ -242,7 +245,7 @@
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js";
         import { getFirestore } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // إعدادات مشروعك الخادمي في Firebase
+        // إعدادات سحابة Firebase الخاصة بك
         const firebaseConfig = {
             apiKey: "AIzaSyDCBDN9N4Vx01tyenQa1pUbuc0k0zn4kWw",
             authDomain: "kh11-b60af.firebaseapp.com",
