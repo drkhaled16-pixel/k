@@ -1,42 +1,562 @@
+import os
+from flask import Flask, jsonify, request, render_template_string
 from flask_sqlalchemy import SQLAlchemy
 
-db = SQLAlchemy()
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///quran_course.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# 1. نموذج الطالب
+db = SQLAlchemy(app)
+
+# ==========================================
+# 1. نماذج قواعد البيانات (Database Models)
+# ==========================================
+
 class Student(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     academic_number = db.Column(db.String(20), unique=True, nullable=False)
-    grades = db.relationship('Grade', backref='student', lazy=True)
+    grades = db.relationship('Grade', backref='student', lazy=True, cascade="all, delete-orphan")
 
-# 2. نموذج الوحدات
 class Unit(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(100), nullable=False) # مثل: وحدة التفسير والإتقان
-    lessons = db.relationship('Lesson', backref='unit', lazy=True)
+    title = db.Column(db.String(100), nullable=False)
+    lessons = db.relationship('Lesson', backref='unit', lazy=True, cascade="all, delete-orphan")
 
-# 3. نموذج الدروس
 class Lesson(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(100), nullable=False) # مثل: تفسير سورة الفاتحة
+    title = db.Column(db.String(100), nullable=False)
     unit_id = db.Column(db.Integer, db.ForeignKey('unit.id'), nullable=False)
-    quizzes = db.relationship('Quiz', backref='lesson', lazy=True)
+    quizzes = db.relationship('Quiz', backref='lesson', lazy=True, cascade="all, delete-orphan")
 
-# 4. نموذج الاختبارات
 class Quiz(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
-    max_score = db.Column(db.Float, default=10.0) # الدرجة العظمى للاختبار
+    max_score = db.Column(db.Float, default=10.0)
     lesson_id = db.Column(db.Integer, db.ForeignKey('lesson.id'), nullable=False)
-    grades = db.relationship('Grade', backref='quiz', lazy=True)
+    grades = db.relationship('Grade', backref='quiz', lazy=True, cascade="all, delete-orphan")
 
-# 5. سجل الدرجات (توزيع الدرجات)
 class Grade(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     student_id = db.Column(db.Integer, db.ForeignKey('student.id'), nullable=False)
     quiz_id = db.Column(db.Integer, db.ForeignKey('quiz.id'), nullable=False)
-    score_achieved = db.Column(db.Float, nullable=False)
+    score_achieved = db.Column(db.Float, nullable=False)      # درجة الاختبار
+    recitation_score = db.Column(db.Float, default=0.0)       # درجة التلاوة والحفظ
+    participation_score = db.Column(db.Float, default=0.0)    # درجة المشاركة والتفاعل
+
+
+# ==========================================
+# 2. الواجهة الأمامية (HTML + CSS + JS)
+# ==========================================
+
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مادة القرآن الكريم وتفسيره - الأول الثانوي</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f4f6f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .card { border-radius: 12px; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .header-bg { background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white; padding: 25px 0; margin-bottom: 30px; }
+        .nav-pills .nav-link.active { background-color: #2a5298; }
+        .btn-custom { background-color: #2a5298; color: white; }
+        .btn-custom:hover { background-color: #1e3c72; color: white; }
+    </style>
+</head>
+<body>
+
+    <div class="header-bg text-center">
+        <h2>مادة القرآن الكريم وتفسيره</h2>
+        <p class="mb-0">منهج الصف الأول الثانوي - نظام إدارة المقرر والطلاب والدرجات</p>
+    </div>
+
+    <div class="container">
+        <!-- القائمة الرئيسية -->
+        <ul class="nav nav-pills nav-justified mb-4" id="mainTabs">
+            <li class="nav-item">
+                <button class="nav-link active" onclick="showTab('curriculumTab')">مقرر المادة والوحدات</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" onclick="showTab('studentsTab')">سجل الطلاب</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" onclick="showTab('gradesTab')">توزيع الدرجات والاختبارات</button>
+            </li>
+        </ul>
+
+        <!-- تبويب مقرر المادة -->
+        <div id="curriculumTab" class="tab-content">
+            <div class="card p-4">
+                <h4 class="mb-3 text-primary">الوحدات والدروس المسجلة</h4>
+                <div id="curriculumAccordion" class="accordion mb-4"></div>
+                
+                <hr>
+                <h5 class="mt-3">إضافة وحدة أو درس جديد</h5>
+                <form id="addLessonForm" class="row g-3 mt-1">
+                    <div class="col-md-5">
+                        <select id="unitSelect" class="form-select" required>
+                            <option value="">اختر الوحدة...</option>
+                        </select>
+                    </div>
+                    <div class="col-md-5">
+                        <input type="text" id="lessonTitle" class="form-field form-control" placeholder="اسم الدرس الجديد" required>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-custom w-100">إضافة درس</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- تبويب الطلاب -->
+        <div id="studentsTab" class="tab-content" style="display:none;">
+            <div class="card p-4">
+                <h4 class="mb-3 text-primary">إضافة طالب جديد</h4>
+                <form id="addStudentForm" class="row g-3 mb-4">
+                    <div class="col-md-5">
+                        <input type="text" id="studentName" class="form-control" placeholder="اسم الطالب الثلاثي" required>
+                    </div>
+                    <div class="col-md-5">
+                        <input type="text" id="studentNum" class="form-control" placeholder="الرقم الأكاديمي / السجل" required>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-custom w-100">حفظ الطالب</button>
+                    </div>
+                </form>
+
+                <h4 class="mb-3 text-primary">قائمة الطلاب</h4>
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>#</th>
+                            <th>اسم الطالب</th>
+                            <th>الرقم الأكاديمي</th>
+                            <th>التقرير</th>
+                        </tr>
+                    </thead>
+                    <tbody id="studentsTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- تبويب الاختبارات والدرجات -->
+        <div id="gradesTab" class="tab-content" style="display:none;">
+            <div class="row">
+                <!-- إنشاء اختبار -->
+                <div class="col-md-6">
+                    <div class="card p-4">
+                        <h4 class="mb-3 text-primary">إنشاء اختبار لدرس</h4>
+                        <form id="addQuizForm">
+                            <div class="mb-3">
+                                <label class="form-label">الدرس الخاص بالاختبار</label>
+                                <select id="quizLessonSelect" class="form-select" required></select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">عنوان الاختبار</label>
+                                <input type="text" id="quizTitle" class="form-control" placeholder="مثال: اختبار تفسير سورة الفاتحة" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">الدرجة العظمى</label>
+                                <input type="number" id="quizMaxScore" class="form-control" value="10" step="0.5" required>
+                            </div>
+                            <button type="submit" class="btn btn-custom w-100">إنشاء الاختبار</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- رصد الدرجات -->
+                <div class="col-md-6">
+                    <div class="card p-4">
+                        <h4 class="mb-3 text-primary">رصد درجات طالب</h4>
+                        <form id="assignGradeForm">
+                            <div class="mb-3">
+                                <label class="form-label">الطالب</label>
+                                <select id="gradeStudentSelect" class="form-select" required></select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">الاختبار</label>
+                                <select id="gradeQuizSelect" class="form-select" required></select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">درجة الاختبار</label>
+                                <input type="number" id="scoreAchieved" class="form-control" step="0.5" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">درجة التلاوة والحفظ</label>
+                                <input type="number" id="recitationScore" class="form-control" value="0" step="0.5">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">درجة المشاركة والتفاعل</label>
+                                <input type="number" id="participationScore" class="form-control" value="0" step="0.5">
+                            </div>
+                            <button type="submit" class="btn btn-success w-100">حفظ وتحديث الدرجة</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- نافذة تقرير الطالب (Modal) -->
+    <div class="modal fade" id="reportModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="reportStudentName">كشف الدرجات</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>الرقم الأكاديمي:</strong> <span id="reportAcademicNum"></span></p>
+                    <table class="table table-bordered text-center">
+                        <thead class="table-light">
+                            <tr>
+                                <th>الاختبار</th>
+                                <th>درجة الاختبار</th>
+                                <th>درجة التلاوة والحفظ</th>
+                                <th>المشاركة</th>
+                                <th>المجموع الكلي</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reportTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // التبديل بين التبويبات
+        function showTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+            document.getElementById(tabId).style.display = 'block';
+            document.querySelectorAll('#mainTabs .nav-link').forEach(el => el.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+
+        // تحميل البيانات عند فتح الصفحة
+        document.addEventListener('DOMContentLoaded', () => {
+            loadCurriculum();
+            loadStudents();
+            loadQuizzes();
+        });
+
+        // 1. تحميل المقرر والوحدات
+        function loadCurriculum() {
+            fetch('/api/units')
+                .then(res => res.json())
+                .then(units => {
+                    let accHtml = '';
+                    let unitSelectHtml = '<option value="">اختر الوحدة...</option>';
+                    let lessonSelectHtml = '<option value="">اختر الدرس...</option>';
+
+                    units.forEach((u, index) => {
+                        unitSelectHtml += `<option value="${u.unit_id}">${u.unit_title}</option>`;
+                        
+                        let lessonsList = u.lessons.map(l => {
+                            lessonSelectHtml += `<option value="${l.lesson_id}">${l.lesson_title} (${u.unit_title})</option>`;
+                            let quizzes = l.quizzes.length > 0 
+                                ? l.quizzes.map(q => `<span class="badge bg-info text-dark ms-1">${q.title} (${q.max_score} درجات)</span>`).join(' ')
+                                : '<span class="text-muted small">لا يوجد اختبار لهذا الدرس</span>';
+                            return `<li class="list-group-item d-flex justify-content-between align-items-center">
+                                        <div><strong>${l.lesson_title}</strong></div>
+                                        <div>${quizzes}</div>
+                                    </li>`;
+                        }).join('');
+
+                        accHtml += `
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button ${index !== 0 ? 'collapsed' : ''}" type="button" data-bs-toggle="collapse" data-bs-target="#unit${u.unit_id}">
+                                        ${u.unit_title}
+                                    </button>
+                                </h2>
+                                <div id="unit${u.unit_id}" class="accordion-collapse collapse ${index === 0 ? 'show' : ''}">
+                                    <div class="accordion-body p-0">
+                                        <ul class="list-group list-group-flush">${lessonsList || '<li class="list-group-item">لا توجد دروس حالياً</li>'}</ul>
+                                    </div>
+                                </div>
+                            </div>`;
+                    });
+
+                    document.getElementById('curriculumAccordion').innerHTML = accHtml;
+                    document.getElementById('unitSelect').innerHTML = unitSelectHtml;
+                    document.getElementById('quizLessonSelect').innerHTML = lessonSelectHtml;
+                });
+        }
+
+        // إضافة درس جديد
+        document.getElementById('addLessonForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            fetch('/api/lessons/add', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    unit_id: document.getElementById('unitSelect').value,
+                    title: document.getElementById('lessonTitle').value
+                })
+            }).then(() => {
+                document.getElementById('lessonTitle').value = '';
+                loadCurriculum();
+            });
+        });
+
+        // 2. إدارة الطلاب
+        function loadStudents() {
+            fetch('/api/students')
+                .then(res => res.json())
+                .then(students => {
+                    let rows = '';
+                    let studentSelectHtml = '<option value="">اختر الطالب...</option>';
+
+                    students.forEach((s, idx) => {
+                        studentSelectHtml += `<option value="${s.id}">${s.name}</option>`;
+                        rows += `
+                            <tr>
+                                <td>${idx + 1}</td>
+                                <td>${s.name}</td>
+                                <td>${s.academic_number}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="viewReport(${s.id})">عرض كشف الدرجات</button>
+                                </td>
+                            </tr>`;
+                    });
+
+                    document.getElementById('studentsTableBody').innerHTML = rows;
+                    document.getElementById('gradeStudentSelect').innerHTML = studentSelectHtml;
+                });
+        }
+
+        // إضافة طالب
+        document.getElementById('addStudentForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            fetch('/api/students', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    name: document.getElementById('studentName').value,
+                    academic_number: document.getElementById('studentNum').value
+                })
+            }).then(() => {
+                document.getElementById('studentName').value = '';
+                document.getElementById('studentNum').value = '';
+                loadStudents();
+            });
+        });
+
+        // 3. الاختبارات والدرجات
+        function loadQuizzes() {
+            fetch('/api/quizzes')
+                .then(res => res.json())
+                .then(quizzes => {
+                    let options = '<option value="">اختر الاختبار...</option>';
+                    quizzes.forEach(q => {
+                        options += `<option value="${q.id}">${q.title} (الأقصى: ${q.max_score})</option>`;
+                    });
+                    document.getElementById('gradeQuizSelect').innerHTML = options;
+                });
+        }
+
+        // إضافة اختبار
+        document.getElementById('addQuizForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            fetch('/api/quizzes/add', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    lesson_id: document.getElementById('quizLessonSelect').value,
+                    title: document.getElementById('quizTitle').value,
+                    max_score: parseFloat(document.getElementById('quizMaxScore').value)
+                })
+            }).then(() => {
+                document.getElementById('quizTitle').value = '';
+                loadCurriculum();
+                loadQuizzes();
+            });
+        });
+
+        // رصد درجة
+        document.getElementById('assignGradeForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            fetch('/api/grades/assign', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    student_id: document.getElementById('gradeStudentSelect').value,
+                    quiz_id: document.getElementById('gradeQuizSelect').value,
+                    score_achieved: parseFloat(document.getElementById('scoreAchieved').value),
+                    recitation_score: parseFloat(document.getElementById('recitationScore').value),
+                    participation_score: parseFloat(document.getElementById('participationScore').value)
+                })
+            }).then(() => {
+                alert('تم حفظ ورصد الدرجة بنجاح');
+                document.getElementById('scoreAchieved').value = '';
+            });
+        });
+
+        // عرض تقرير الدرجات
+        function viewReport(studentId) {
+            fetch(`/api/students/${studentId}/report`)
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('reportStudentName').innerText = 'كشف درجات الطالب: ' + data.student_name;
+                    document.getElementById('reportAcademicNum').innerText = data.academic_number;
+
+                    let rows = '';
+                    if(data.grades_detail.length === 0) {
+                        rows = '<tr><td colspan="5" class="text-muted">لم يتم رصد درجات لهذا الطالب بعد</td></tr>';
+                    } else {
+                        data.grades_detail.forEach(g => {
+                            rows += `
+                                <tr>
+                                    <td>${g.quiz_title}</td>
+                                    <td>${g.quiz_score} / ${g.quiz_max}</td>
+                                    <td>${g.recitation_score}</td>
+                                    <td>${g.participation_score}</td>
+                                    <td class="fw-bold text-success">${g.total_for_lesson}</td>
+                                </tr>`;
+                        });
+                    }
+                    document.getElementById('reportTableBody').innerHTML = rows;
+                    new bootstrap.Modal(document.getElementById('reportModal')).show();
+                });
+        }
+    </script>
+</body>
+</html>
+"""
+
+# ==========================================
+# 3. واجهات API (Backend Endpoints)
+# ==========================================
+
+@app.route('/')
+def index():
+    return render_template_string(HTML_TEMPLATE)
+
+@app.route('/api/units', methods=['GET'])
+def get_units():
+    units = Unit.query.all()
+    result = []
+    for u in units:
+        lessons = []
+        for l in u.lessons:
+            quizzes = [{"id": q.id, "title": q.title, "max_score": q.max_score} for q in l.quizzes]
+            lessons.append({"lesson_id": l.id, "lesson_title": l.title, "quizzes": quizzes})
+        result.append({"unit_id": u.id, "unit_title": u.title, "lessons": lessons})
+    return jsonify(result)
+
+@app.route('/api/lessons/add', methods=['POST'])
+def add_lesson():
+    data = request.json
+    new_lesson = Lesson(title=data['title'], unit_id=int(data['unit_id']))
+    db.session.add(new_lesson)
+    db.session.commit()
+    return jsonify({"message": "تم إضافة الدرس بنجاح"}), 201
+
+@app.route('/api/students', methods=['GET', 'POST'])
+def handle_students():
+    if request.method == 'POST':
+        data = request.json
+        new_student = Student(name=data['name'], academic_number=data['academic_number'])
+        db.session.add(new_student)
+        db.session.commit()
+        return jsonify({"message": "تم إضافة الطالب بنجاح"}), 201
     
-    # توزيع درجات أعمال السنة
-    recitation_score = db.Column(db.Float, default=0.0) # الحفظ والتلاوة
-    participation_score = db.Column(db.Float, default=0.0) # المشاركة والتفاعل
+    students = Student.query.all()
+    return jsonify([{"id": s.id, "name": s.name, "academic_number": s.academic_number} for s in students])
+
+@app.route('/api/quizzes', methods=['GET'])
+def get_quizzes():
+    quizzes = Quiz.query.all()
+    return jsonify([{"id": q.id, "title": q.title, "max_score": q.max_score} for q in quizzes])
+
+@app.route('/api/quizzes/add', methods=['POST'])
+def add_quiz():
+    data = request.json
+    new_quiz = Quiz(title=data['title'], max_score=data.get('max_score', 10.0), lesson_id=int(data['lesson_id']))
+    db.session.add(new_quiz)
+    db.session.commit()
+    return jsonify({"message": "تم إحداث الاختبار بنجاح"}), 201
+
+@app.route('/api/grades/assign', methods=['POST'])
+def assign_grade():
+    data = request.json
+    grade = Grade(
+        student_id=int(data['student_id']),
+        quiz_id=int(data['quiz_id']),
+        score_achieved=float(data['score_achieved']),
+        recitation_score=float(data.get('recitation_score', 0.0)),
+        participation_score=float(data.get('participation_score', 0.0))
+    )
+    db.session.add(grade)
+    db.session.commit()
+    return jsonify({"message": "تم حفظ الدرجة بنجاح"}), 201
+
+@app.route('/api/students/<int:student_id>/report', methods=['GET'])
+def get_student_report(student_id):
+    student = Student.query.get_or_404(student_id)
+    grades = Grade.query.filter_by(student_id=student_id).all()
+    
+    report = {
+        "student_name": student.name,
+        "academic_number": student.academic_number,
+        "grades_detail": []
+    }
+    
+    for g in grades:
+        quiz = Quiz.query.get(g.quiz_id)
+        report["grades_detail"].append({
+            "quiz_title": quiz.title if quiz else "اختبار محذوف",
+            "quiz_score": g.score_achieved,
+            "quiz_max": quiz.max_score if quiz else 0,
+            "recitation_score": g.recitation_score,
+            "participation_score": g.participation_score,
+            "total_for_lesson": g.score_achieved + g.recitation_score + g.participation_score
+        })
+        
+    return jsonify(report)
+
+# ==========================================
+# 4. تهيئة البيانات والتأكيد
+# ==========================================
+
+def seed_database():
+    if not Unit.query.first():
+        # إضافة وحدات مقرر الأول الثانوي
+        u1 = Unit(title="الوحدة الأولى: مدخل إلى التفسير وأصوله")
+        u2 = Unit(title="الوحدة الثانية: علوم القرآن الكريم")
+        u3 = Unit(title="الوحدة الثالثة: تفسير سورة الفاتحة والسور المقررة")
+        db.session.add_all([u1, u2, u3])
+        db.session.commit()
+
+        # إضافة دروس نموذجية
+        l1 = Lesson(title="الدرس الأول: تعريف التفسير ونشأته", unit_id=u1.id)
+        l2 = Lesson(title="الدرس الثاني: أقسام التفسير ومناهجه", unit_id=u1.id)
+        l3 = Lesson(title="الدرس الثالث: الوحي ونزول القرآن الكريم", unit_id=u2.id)
+        l4 = Lesson(title="الدرس الرابع: تفسير سورة الفاتحة", unit_id=u3.id)
+        db.session.add_all([l1, l2, l3, l4])
+        db.session.commit()
+
+        # إضافة اختبارات أولية
+        q1 = Quiz(title="اختبار تقويمي: نشأة التفسير", max_score=10, lesson_id=l1.id)
+        q2 = Quiz(title="اختبار قصير: سورة الفاتحة", max_score=10, lesson_id=l4.id)
+        db.session.add_all([q1, q2])
+        db.session.commit()
+
+        # إضافة طلاب كعينات تجريبية
+        s1 = Student(name="عبدالله أحمد السالم", academic_number="104001")
+        s2 = Student(name="محمد عمر الشمري", academic_number="104002")
+        db.session.add_all([s1, s2])
+        db.session.commit()
+
+if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+        seed_database()
+    print("-> التطبيق يعمل الآن! افتح متصفحك على العنوان: http://127.0.0.1:5000")
+    app.run(debug=True)
