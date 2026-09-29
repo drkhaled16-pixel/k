@@ -1,0 +1,42 @@
+from flask_sqlalchemy import SQLAlchemy
+
+db = SQLAlchemy()
+
+# 1. نموذج الطالب
+class Student(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    academic_number = db.Column(db.String(20), unique=True, nullable=False)
+    grades = db.relationship('Grade', backref='student', lazy=True)
+
+# 2. نموذج الوحدات
+class Unit(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(100), nullable=False) # مثل: وحدة التفسير والإتقان
+    lessons = db.relationship('Lesson', backref='unit', lazy=True)
+
+# 3. نموذج الدروس
+class Lesson(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(100), nullable=False) # مثل: تفسير سورة الفاتحة
+    unit_id = db.Column(db.Integer, db.ForeignKey('unit.id'), nullable=False)
+    quizzes = db.relationship('Quiz', backref='lesson', lazy=True)
+
+# 4. نموذج الاختبارات
+class Quiz(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(100), nullable=False)
+    max_score = db.Column(db.Float, default=10.0) # الدرجة العظمى للاختبار
+    lesson_id = db.Column(db.Integer, db.ForeignKey('lesson.id'), nullable=False)
+    grades = db.relationship('Grade', backref='quiz', lazy=True)
+
+# 5. سجل الدرجات (توزيع الدرجات)
+class Grade(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('student.id'), nullable=False)
+    quiz_id = db.Column(db.Integer, db.ForeignKey('quiz.id'), nullable=False)
+    score_achieved = db.Column(db.Float, nullable=False)
+    
+    # توزيع درجات أعمال السنة
+    recitation_score = db.Column(db.Float, default=0.0) # الحفظ والتلاوة
+    participation_score = db.Column(db.Float, default=0.0) # المشاركة والتفاعل
